@@ -223,7 +223,25 @@ public final class OpenId4VpService: @unchecked Sendable, PresentationService {
 			for (p, disclosures) in allPathsDict {
 				let path = ClaimPath(p.value.map { e in if case .claim(let name) = e { ClaimPathElement.claim(name: name) } else if case .arrayElement(let index) = e { ClaimPathElement.arrayElement(index: index) } else { ClaimPathElement.allArrayElements } } )
 				paths.append(path)
-				values[path] = disclosures
+				// Decode actual values from base64url-encoded SD-JWT disclosures
+				// Disclosure format: [salt, name, value] for named claims, [salt, value] for array elements
+				var decodedValues = [String]()
+				for disclosure in disclosures {
+					guard let data = Data(base64urlEncoded: disclosure),
+						  let json = try? JSONSerialization.jsonObject(with: data) as? [Any] else {
+						continue
+					}
+					if let val = json.last {
+						if let s = val as? String {
+							decodedValues.append(s)
+						} else if let arr = val as? [Any] {
+							for elem in arr {
+								if let s = elem as? String { decodedValues.append(s) }
+							}
+						}
+					}
+				}
+				values[path] = decodedValues.isEmpty ? disclosures : decodedValues
 			}
 			claimPaths[docId] = paths
 			claimValues[docId] = values
