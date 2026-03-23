@@ -201,7 +201,17 @@ public final class OpenId4VpService: @unchecked Sendable, PresentationService {
 				for item in items {
 					logger.info("IssuerSigned document \(docId) namespace \(ns) item: \(item.elementIdentifier)")
 					paths.append(ClaimPath([.claim(name: String(ns)), .claim(name: item.elementIdentifier)]))
-					values[paths.last!] = [item.description]
+					// Extract values from CBOR arrays (e.g., nationality: ["FR"])
+					let extractedValues: [String]
+					if case .array(let arr) = item.elementValue {
+						extractedValues = arr.compactMap { elem -> String? in
+							if case .utf8String(let s) = elem { return s }
+							return nil
+						}
+					} else {
+						extractedValues = [item.description]
+					}
+					values[paths.last!] = extractedValues.isEmpty ? [item.description] : extractedValues
 				}
 			}
 			claimPaths[docId] = paths
